@@ -36,6 +36,40 @@ TIMEZONE_SUGGESTIONS = [
 
 CITY_CACHE: Dict[str, Dict[str, float]] = {}
 
+CUSTOM_CSS = """
+.interpretation-box {
+    border: 1px solid #444;
+    border-radius: 8px;
+    background-color: #1a1a2e;
+    padding: 24px 28px;
+    min-height: 300px;
+    max-height: 70vh;
+    overflow-y: auto;
+    font-size: 15px;
+    line-height: 1.75;
+    color: #e0e0e0;
+}
+.interpretation-box h1,
+.interpretation-box h2,
+.interpretation-box h3 {
+    color: #c9a84c;
+}
+.interpretation-box table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+}
+.interpretation-box th,
+.interpretation-box td {
+    border: 1px solid #555;
+    padding: 6px 10px;
+    text-align: left;
+}
+.interpretation-box th {
+    background-color: #2a2a4a;
+}
+"""
+
 
 # ---------------------------------------------------------
 # BUSCA DE CIDADES (campo unificado com Local)
@@ -385,4 +419,4 @@ app = build_app()
 
 
 if __name__ == "__main__":
-    app.launch()
+    app.launch(css=CUSTOM_CSS)
