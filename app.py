@@ -38,7 +38,7 @@ CITY_CACHE: Dict[str, Dict[str, float]] = {}
 
 
 # ---------------------------------------------------------
-# BUSCA DE CIDADES
+# BUSCA DE CIDADES (campo unificado com Local)
 # ---------------------------------------------------------
 
 def search_cities(query: str):
@@ -74,9 +74,10 @@ def search_cities(query: str):
     return results
 
 
-def update_city_dropdown(city_query: str):
+def update_city_dropdown(birth_place: str):
+    """Busca cidades a partir do texto digitado no campo Local."""
     CITY_CACHE.clear()
-    results = search_cities(city_query)
+    results = search_cities(birth_place)
 
     if not results:
         return gr.update(choices=[], value=None), None, None
@@ -95,10 +96,11 @@ def update_city_dropdown(city_query: str):
 
 
 def select_city(label: str):
+    """Ao selecionar uma cidade no dropdown, atualiza lat/lon e o campo Local."""
     coords = CITY_CACHE.get(label)
     if not coords:
-        return None, None
-    return coords["latitude"], coords["longitude"]
+        return None, None, gr.update()
+    return coords["latitude"], coords["longitude"], label
 
 
 # ---------------------------------------------------------
@@ -262,11 +264,17 @@ def build_app():
                 name = gr.Textbox(label="Nome")
                 birth_date = gr.Textbox(label="Data", placeholder="YYYY-MM-DD")
                 birth_time = gr.Textbox(label="Hora", placeholder="HH:MM")
-                birth_place = gr.Textbox(label="Local")
 
-                city_query = gr.Textbox(label="Buscar cidade")
+                # Campo Local unificado: digita o nome da cidade e clica Buscar
+                birth_place = gr.Textbox(
+                    label="Local",
+                    placeholder="Digite a cidade e clique Buscar",
+                )
                 search_btn = gr.Button("Buscar")
-                city_dropdown = gr.Dropdown(label="Resultados")
+                city_dropdown = gr.Dropdown(
+                    label="Resultados",
+                    visible=True,
+                )
 
                 latitude = gr.Number(label="Latitude")
                 longitude = gr.Number(label="Longitude")
@@ -296,23 +304,26 @@ def build_app():
                 interpret_btn = gr.Button("Gerar interpretação")
 
                 interpretation = gr.Markdown(
-                    label="Leitura"
+                    label="Leitura",
+                    elem_classes=["interpretation-box"],
                 )
 
             with gr.Tab("PDF"):
                 export_btn = gr.Button("Exportar PDF")
                 pdf_file = gr.File()
 
+        # --- Busca: usa o campo Local como input ---
         search_btn.click(
             update_city_dropdown,
-            city_query,
+            birth_place,
             [city_dropdown, latitude, longitude],
         )
 
+        # --- Ao selecionar no dropdown, atualiza lat/lon E o campo Local ---
         city_dropdown.change(
             select_city,
             city_dropdown,
-            [latitude, longitude],
+            [latitude, longitude, birth_place],
         )
 
         calc_btn.click(

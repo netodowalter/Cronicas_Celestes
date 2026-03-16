@@ -27,6 +27,21 @@ ALLOWED_PROMPT_PLANETS = {
     "Saturn",
 }
 
+SIGN_RULERS = {
+    "Aries": "Mars",
+    "Taurus": "Venus",
+    "Gemini": "Mercury",
+    "Cancer": "Moon",
+    "Leo": "Sun",
+    "Virgo": "Mercury",
+    "Libra": "Venus",
+    "Scorpio": "Mars",
+    "Sagittarius": "Jupiter",
+    "Capricorn": "Saturn",
+    "Aquarius": "Saturn",
+    "Pisces": "Jupiter",
+}
+
 
 # ============================================
 # BLOCO TÉCNICO DO CÁLCULO PARA O PROMPT
@@ -39,6 +54,7 @@ def build_chart_calculation_block(chart: Dict[str, Any]) -> str:
 
     Conteúdo incluído:
     - Ascendente e Meio do Céu (posição + signo)
+    - Regente do Ascendente (planeta, posição, casa, dignidade)
     - sete planetas na ordem já recebida em chart['dignities']
       (assumindo que o core já ordenou por dignidade essencial)
     - tabela de aspectos válidos já filtrados pelo cálculo
@@ -47,12 +63,17 @@ def build_chart_calculation_block(chart: Dict[str, Any]) -> str:
     - nodos
     - parte da fortuna
     - tabela completa de dignidades
-    - regentes das casas
     - metadados extras
     """
     positions_by_planet = {
         item["planet"]: item
         for item in chart.get("positions", [])
+        if item.get("planet") in ALLOWED_PROMPT_PLANETS
+    }
+
+    dignities_by_planet = {
+        item["planet"]: item
+        for item in chart.get("dignities", [])
         if item.get("planet") in ALLOWED_PROMPT_PLANETS
     }
 
@@ -62,17 +83,47 @@ def build_chart_calculation_block(chart: Dict[str, Any]) -> str:
         if item.get("planet") in ALLOWED_PROMPT_PLANETS
     ]
 
+    # --- Identificar regente do Ascendente ---
+    asc_sign = chart["ascendant"]["sign"]
+    asc_ruler = SIGN_RULERS.get(asc_sign, "")
+    asc_ruler_pos = positions_by_planet.get(asc_ruler)
+    asc_ruler_dignity = dignities_by_planet.get(asc_ruler)
+
     lines = []
     lines.append("# DADOS DO MAPA")
     lines.append("")
     lines.append("## Ângulos")
     lines.append(
-        f"- Ascendente: {chart['ascendant']['sign']} {chart['ascendant']['degree']:.2f}°"
+        f"- Ascendente: {asc_sign} {chart['ascendant']['degree']:.2f}°"
     )
     lines.append(
         f"- Meio do Céu: {chart['midheaven']['sign']} {chart['midheaven']['degree']:.2f}°"
     )
     lines.append("")
+
+    # --- Bloco do Regente do Ascendente ---
+    lines.append("## Regente do Ascendente")
+    if asc_ruler and asc_ruler_pos and asc_ruler_dignity:
+        detail_text = "; ".join(asc_ruler_dignity.get("essentialDetails", [])) or "Nenhum"
+        lines.append(
+            f"- Regente: {asc_ruler} (rege {asc_sign})"
+        )
+        lines.append(
+            f"- Posição: {asc_ruler_pos['sign']} {asc_ruler_pos['degree']:02d}°{asc_ruler_pos['minute']:02d}' — Casa {asc_ruler_pos.get('house', '-')}"
+        )
+        lines.append(
+            f"- Dignidade essencial: {asc_ruler_dignity.get('essentialScore', 0)} ({detail_text})"
+        )
+        lines.append(
+            f"- Dignidade acidental: {asc_ruler_dignity.get('accidentalScore', 0)}"
+        )
+        lines.append(
+            f"- Retrógrado: {'Sim' if asc_ruler_pos.get('retrograde') else 'Não'}"
+        )
+    else:
+        lines.append(f"- Regente: {asc_ruler} (dados não disponíveis)")
+    lines.append("")
+
     lines.append("## Planetas ordenados por dignidade essencial")
 
     for idx, dignity in enumerate(dignities, start=1):
@@ -116,12 +167,20 @@ def build_chart_calculation_block(chart: Dict[str, Any]) -> str:
 def build_interpretation_prompt(chart: Dict[str, Any]) -> str:
     calculation_block = build_chart_calculation_block(chart)
 
-    instructions = """
+    # Identificar regente do Ascendente para a instrução
+    asc_sign = chart["ascendant"]["sign"]
+    asc_ruler = SIGN_RULERS.get(asc_sign, "")
+
+    instructions = f"""
 Você opera exclusivamente em astrologia tradicional, usando whole sign houses. Cada signo corresponde integralmente a uma casa. Regências são somente tradicionais; planetas modernos não regem casas. Você escreve em prosa contínua, em terceira pessoa, com parágrafos densos e articulados. Evite listas, bullets, linguagem terapêutica, motivacional ou new age. Qualidades, limitações e contradições devem ser explicitadas.
+
+REGRA FUNDAMENTAL — REGENTE DO ASCENDENTE
+
+O regente do Ascendente neste mapa é {asc_ruler} (rege {asc_sign}). Ele é o planeta mais importante do mapa inteiro, pois representa o nativo como um todo. Independentemente de sua posição no ranking de dignidade essencial, o regente do Ascendente DEVE ser analisado no máximo como o terceiro planeta na ordem de análise. Se ele já aparece entre os três primeiros no ranking de dignidade, mantenha-o na posição natural. Se ele está abaixo do terceiro lugar, promova-o para a terceira posição e desloque os demais para baixo. A análise do regente do Ascendente deve ser especialmente detalhada, pois ele define a condição geral do nativo.
 
 1.
 
-Para cada planeta, descreva como sua expressão resulta da combinação entre sua natureza, o signo onde se encontra e sua dignidade essencial. Na ordem recebida (dignidade essencial maior para o menor).
+Para cada planeta, descreva como sua expressão resulta da combinação entre sua natureza, o signo onde se encontra e sua dignidade essencial. Na ordem recebida (dignidade essencial maior para o menor), respeitando a regra acima sobre o regente do Ascendente.
 
 2.
 
@@ -162,7 +221,7 @@ Se Júpiter for o planeta mais forte e estiver na Casa 8 em Peixes, a leitura co
 Forma
 
 Não mencione qualquer termo astrológico (planetas, signos, casas, aspectos, dignidades etc.).
-Texto em prosa contínua, densa, em terceira pessoa, referindo-se sempre ao indivíduo como “ele” ou "ela".
+Texto em prosa contínua, densa, em terceira pessoa, referindo-se sempre ao indivíduo como "ele" ou "ela".
 Sem tom terapêutico ou linguagem motivacional.
 Com previsões objetivas, precisas e específicas para a vida da pessoa.
 
